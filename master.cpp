@@ -93,7 +93,7 @@ void test_logger_random(InterProcessDebugBuffer& ipdb)
             ++times_counter;
 
             text = generateRandomString();
-            writed = smTRACE("float: %f, int: %d, string: %s",
+            writed = LOG_TRACE("float: %f, int: %d, string: %s",
                     (rand() % (65535 - 0 + 1)) + 0,
                     (float)rand() / (float)rand(),
                     text.c_str());

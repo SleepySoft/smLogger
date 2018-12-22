@@ -267,7 +267,7 @@ public:
     }
     uint32_t write(uint8_t* content, uint32_t content_length, const char* tail)
     {
-        if (!MASTER || !m_ipMemory.valid())
+        if (!m_ipMemory.valid())
         {
             return 0;
         }
@@ -421,9 +421,9 @@ protected:
 };
 
 
-#define smDEBUG(fmt, ...) smLogger::instance().log(fmt, ##__VA_ARGS__)
-#define smTRACE(fmt, ...) smLogger::instance().log("TRACE - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
-#define smERROR(fmt, ...) smLogger::instance().log("ERROR - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) smLogger::instance().log(fmt, ##__VA_ARGS__)
+#define LOG_TRACE(fmt, ...) smLogger::instance().log("TRACE - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) smLogger::instance().log("ERROR - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
 
 
 
