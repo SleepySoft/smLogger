@@ -72,7 +72,7 @@ Flaws:
 
 I think it could have some improvement.  
 
-----------------------------------------------------------------------------------------------------------  
+----------------------------------------------------------------------------------
 
 Code design:  
 
@@ -98,12 +98,15 @@ Update on 2018/12/23:
 Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
 smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
+----------------------------------------------------------------------------------
 
+The next plan:  
+1. Move the additional data to the gap of file content and the alignment of memory page so the additional data will not showed in file.  
+2. Mapping a large memory at begining but increase the file dynamically (of cause the additional data will move to the tail of next page if currently page is full). So we can use "tail" to trace the update of log.  
 
+You can take a look at the "mmap使用细节" part of https://www.cnblogs.com/huxiao-tee/p/4660352.html to understand my though  
 
-
-
-
+Just in theory. Maybe it doesn't work.  
 
 
 
