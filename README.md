@@ -91,8 +91,11 @@ The log procedure is: smLogger::log() -> InterProcessDebugBuffer::write() -> Rin
 
 The call Hierarchy is very short. So this log library can be very fast and high efficiency.  
 
+----------------------------------------------------------------------------------
 
-
+Update on 2018/10/23:  
+Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
+smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
 
 

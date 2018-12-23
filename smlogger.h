@@ -198,7 +198,7 @@ public:
     virtual ~IDebugBuffer() { };
 
     virtual uint32_t read(uint8_t* buffer, uint32_t buffer_length) = 0;
-    virtual uint32_t write(uint8_t* content, uint32_t content_length, const char* tail) = 0;
+    virtual uint32_t write(const uint8_t* content, uint32_t content_length, const char* tail) = 0;
     virtual uint32_t readSwap(uint32_t offset) = 0;
     virtual bool writeSwap(uint32_t offset, uint32_t val) = 0;
     virtual bool checkInit() = 0;
@@ -265,7 +265,7 @@ public:
 
         return readed;
     }
-    uint32_t write(uint8_t* content, uint32_t content_length, const char* tail)
+    uint32_t write(const uint8_t* content, uint32_t content_length, const char* tail)
     {
         if (!m_ipMemory.valid())
         {
