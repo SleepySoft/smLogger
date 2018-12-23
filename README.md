@@ -66,8 +66,9 @@ For B: We can reserve some space as "swap" space, which can implement the filter
 
 Flaws:  
 
-0.Some additional data attached on the front of log file, which will cause messy code.  
-00.It's not friendly for tail. Because the file is pre-allocated and ring-writed. So the -f parameter may not work.  
+0. Some additional data attached on the front of log file, which will cause messy code.  
+00. It's not friendly for tail. Because the file is pre-allocated and ring-writed. So the -f parameter may not work.  
+000. Currently only support C++11, Linux. It's not a cross platform lib. But we can implement another mechanism and keep the interface.  
 
 I think it could have some improvement.  
 
@@ -93,7 +94,7 @@ The call Hierarchy is very short. So this log library can be very fast and high 
 
 ----------------------------------------------------------------------------------
 
-Update on 2018/10/23:  
+Update on 2018/12/23:  
 Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
 smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
