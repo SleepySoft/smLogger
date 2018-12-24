@@ -48,31 +48,24 @@ You can compile this demo with eclipse or g++. Just remember to add -pthread and
 
 Then you can run the binary and have a try:  
 
-"./smLogger" : Run as slave  
-"./smLogger m" : Run as master, manual input mode  
-"./smLogger m r" : Run as master, random mode  
-"./smLogger m l" : Run as master, test log format with random data  
+> "./smLogger" : Run as slave, auto receive message.  
+> "./smLogger s m" : Run as slave, seek message by arrow key (up, down, left, right, q, other key -> offset -1, +1, -10, +10, quit, refresh with current offset).  
+> "./smLogger m" : Run as master, manual input mode  
+> "./smLogger m r" : Run as master, random mode  
+> "./smLogger m l" : Run as master, test log format with random data  
 
-Once you run a master and at least a slave. You can see the statistics data on the master console and the message that got from master on the slave console.  
+Once you run a master and at least one slave. You can see the statistics data on the master console and the message that got from master on the slave console.  
 
 So let's review the requirement we metioned at the begining:
 
 For 1: It's memory operation. It's really speedy (except log formatting, is there's any way to optmise it?).  
-For 2: We can use tail to view the log. But it's a pity that there's some messy code at the begining and because it's a ring buffer so the tail command will not works well.(Maybe we can use another mapping file for the extra data?)  
+For 2: We can use "watch -n 1 tail /tmp/iplog.txt" to view and auto scroll the log. Because it's a ring buffer. Maybe it will not works well if the content loops back to the front.  
 For 3: When the application crashed. The log will keep in file. But when the application restartd, the file will be overwritten (For inprovement, we can use another shared memory to transfer the control data and the master can specify a new log file).  
 
 For A & D: Every involver can write the memory. So the trigger feature and inter porcess access is very easy.  
 For B: We can reserve some space as "swap" space, which can implement the filter or callback feature.  
 
-Flaws:  
-
-0. Some additional data attached on the front of log file, which will cause messy code.  
-00. It's not friendly for tail. Because the file is pre-allocated and ring-writed. So the -f parameter may not work.  
-000. Currently only support C++11, Linux. It's not a cross platform lib. But we can implement another mechanism and keep the interface.  
-
-I think it could have some improvement.  
-
-----------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------  
 
 Code design:  
 
@@ -94,19 +87,19 @@ The call Hierarchy is very short. So this log library can be very fast and high 
 
 ----------------------------------------------------------------------------------
 
-Update on 2018/12/23:  
-Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
-smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
+Update on 2018/10/23:  
+> Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
+> smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
 ----------------------------------------------------------------------------------
 
-The next plan:  
-1. Move the additional data to the gap of file content and the alignment of memory page so the additional data will not showed in file.  
-2. Mapping a large memory at begining but increase the file dynamically (of cause the additional data will move to the tail of next page if currently page is full). So we can use "tail" to trace the update of log.  
+Update on 2018/10/24:  
 
-You can take a look at the "mmap使用细节" part of https://www.cnblogs.com/huxiao-tee/p/4660352.html to understand my though  
+> Move addition data on the tail of file to avoid the messy code.
+> You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.
+> Add line-seek feature. Now you can use IDebugBuffer::seek() to seek the start line of log from begining (0 or positive offset) or from tail (positive offset)
 
-Just in theory. Maybe it doesn't work.  
+
 
 
 
