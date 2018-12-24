@@ -97,7 +97,7 @@ Update on 2018/10/24:
 
 > Move addition data on the tail of file to avoid the messy code.
 > You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.
-> Add line-seek feature. Now you can use IDebugBuffer::seek() to seek the start line of log from begining (0 or positive offset) or from tail (positive offset)
+> Add line-seek feature. Now you can use IDebugBuffer::seek() to seek the start line of log from begining (0 or positive offset) or from tail (nagitive offset).
 
 
 
