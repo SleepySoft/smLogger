@@ -58,7 +58,7 @@ Once you run a master and at least a slave. You can see the statistics data on t
 So let's review the requirement we metioned at the begining:
 
 For 1: It's memory operation. It's really speedy (except log formatting, is there's any way to optmise it?).  
-For 2: We can use tail to view the log. But it's a pity that there's some messy code at the begining and because it's a ring buffer so the tail command will not works well.(Maybe we can use another mapping file for the extra data?)  
+For 2: We can use "watch -n 1 tail /tmp/iplog.txt" to view and auto scroll the log. Because it's a ring buffer. Maybe it will not works well if the content loops back to the front.  
 For 3: When the application crashed. The log will keep in file. But when the application restartd, the file will be overwritten (For inprovement, we can use another shared memory to transfer the control data and the master can specify a new log file).  
 
 For A & D: Every involver can write the memory. So the trigger feature and inter porcess access is very easy.  
@@ -97,10 +97,12 @@ Update on 2018/10/23:
 Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
 smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
+----------------------------------------------------------------------------------
 
+Update on 2018/10/24:  
 
-
-
+Move addition data on the tail of file to avoid the messy code.
+You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.  
 
 
 

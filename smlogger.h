@@ -18,13 +18,20 @@
 #endif // _POSIX_SHARED_MEMORY_OBJECTS
 
 
-// Only supports Linux
+/*****************************************************************************/
+/*                                                                           */
+/*                          class InterProcessMemory                         */
+/*    Only supports C++ 11, Linux                                            */
+/*        Buffer layout: |       Required Buffer       |   Header   |        */
+/*                                                                           */
+/*****************************************************************************/
 
 class InterProcessMemory
 {
 protected:
     struct header
     {
+        char zero[8];
         pthread_mutex_t mutex;
     };
 
@@ -65,7 +72,7 @@ public:
         }
 
         m_isMaster = master;
-        m_ipmLength = length + sizeof(header);
+        m_ipmLength = length + sizeof(header) + 1;
 
         if (!prepareMemoryMapping(path))
         {
@@ -73,9 +80,10 @@ public:
             return false;
         }
 
-        m_ipmHeader = (header*)m_filePtr;
+        m_ipmHeader = (header*)(m_filePtr + length);
         if (m_isMaster)
         {
+            memset(m_ipmHeader->zero, 0, sizeof(m_ipmHeader->zero));
             pthread_mutex_init(&m_ipmHeader->mutex, &m_mutexAttr);
         }
 
@@ -84,9 +92,9 @@ public:
 
     bool valid() const { return m_filePtr != NULL; }
 
-    uint32_t size() const { return m_ipmLength; };
-    uint8_t* buffer() { return (uint8_t*)(m_filePtr + sizeof(header)); };
-    const uint8_t* buffer() const { return (const uint8_t*)(m_filePtr + sizeof(header)); };
+    uint32_t size() const { return m_ipmLength - sizeof(header) - 1; };
+    uint8_t* buffer() { return (uint8_t*)m_filePtr; };
+    const uint8_t* buffer() const { return (const uint8_t*)m_filePtr; };
 
     void access()
     {
@@ -153,6 +161,13 @@ protected:
     }
 };
 
+
+/*****************************************************************************/
+/*                                                                           */
+/*                           class RingBufferShell                           */
+/*                                                                           */
+/*****************************************************************************/
+
 class RingBufferShell
 {
 protected:
@@ -182,6 +197,7 @@ public:
 
     bool end() const { return (*m_readPos) >= (*m_writePos); }
     void put(uint8_t val) { m_buffer[((*m_writePos)++) % m_length] = val; }
+    void poke(int32_t offset, uint8_t val) { access((*m_readPos) + offset) = val; }
     uint8_t get() { return readable(*m_readPos) ? access((*m_readPos)++) : 0; }
     uint8_t peek(uint32_t offset) { uint64_t pos((*m_readPos) + offset); return readable(pos) ? access(pos) : 0; };
 
@@ -205,25 +221,33 @@ public:
 };
 
 
+/*****************************************************************************/
+/*                                                                           */
+/*                       class InterProcessDebugBuffer                       */
+/*      Buffer layout: |       Log Buffer       |   Header   |  SWAP  |      */
+/*        Command to view the log : watch -d -n 1 tail /tmp/iplog.txt        */
+/*                                                                           */
+/*****************************************************************************/
+
 class InterProcessDebugBuffer : public IDebugBuffer
 {
 protected:
     const bool MASTER;
     const uint32_t LOG_SIZE;
     const uint32_t SWAP_SIZE;
-    const uint32_t LOG_OFFSET;
     const std::string LOG_FILE;
 
 protected:
     struct header
     {
+        char zero[8];
         uint64_t writePos;
         uint64_t latestPos;
-        uint32_t swapBuffer[1];
     };
 
     header* m_header;
     uint64_t m_readPos;
+    uint32_t* m_swapBuffer;
     RingBufferShell m_ringBuffer;
     InterProcessMemory m_ipMemory;
 
@@ -232,11 +256,11 @@ public:
         : MASTER(master),
           LOG_SIZE(log_size > 0 ? log_size : 1),
           SWAP_SIZE(swap_size > 0 ? swap_size : 1),
-          LOG_OFFSET(sizeof(header) + sizeof(uint32_t) * (SWAP_SIZE - 1)),
           LOG_FILE(log_file)
     {
         m_header = NULL;
         m_readPos = 0;
+        m_swapBuffer = NULL;
     };
     ~InterProcessDebugBuffer() { };
 
@@ -285,6 +309,7 @@ public:
                 m_ringBuffer.put(tail[i]);
             }
         }
+        m_ringBuffer.poke(0, 0);
         m_ipMemory.release();
 
         return content_length;
@@ -292,26 +317,26 @@ public:
 
     uint32_t readSwap(uint32_t offset)
     {
-        if ((offset >= SWAP_SIZE) || !m_ipMemory.valid())
+        if ((offset >= SWAP_SIZE) || m_swapBuffer == NULL || !m_ipMemory.valid())
         {
             return 0;
         }
 
         m_ipMemory.access();
-        uint32_t val = m_header->swapBuffer[offset];
+        uint32_t val = m_swapBuffer[offset];
         m_ipMemory.release();
 
         return val;
     }
     bool writeSwap(uint32_t offset, uint32_t val)
     {
-        if ((offset >= SWAP_SIZE) || !m_ipMemory.valid())
+        if ((offset >= SWAP_SIZE) || m_swapBuffer == NULL || !m_ipMemory.valid())
         {
             return false;
         }
 
         m_ipMemory.access();
-        m_header->swapBuffer[offset] = val;
+        m_swapBuffer[offset] = val;
         m_ipMemory.release();
 
         return true;
@@ -324,9 +349,11 @@ public:
         {
             if (m_ipMemory.init(LOG_FILE.c_str(), MASTER, sizeof(header) + LOG_SIZE))
             {
-                m_header = ret ? (header*)m_ipMemory.buffer() : NULL;
+                m_header = (header*)(m_ipMemory.buffer() + LOG_SIZE);
+                memset(m_header->zero, 0, sizeof(m_header->zero));
+                m_swapBuffer = (uint32_t*)(m_ipMemory.buffer() + LOG_SIZE + sizeof(header));
                 m_readPos = m_header->latestPos;
-                m_ringBuffer.init(m_ipMemory.buffer() + LOG_OFFSET, LOG_SIZE, &m_readPos, &m_header->writePos);
+                m_ringBuffer.init(m_ipMemory.buffer(), LOG_SIZE, &m_readPos, &m_header->writePos);
             }
             else
             {
@@ -342,10 +369,9 @@ public:
 
 /*******************************************************************************************/
 /*                                                                                         */
-/*                                   Log - printf Style                                    */
+/*                              class smLogger - printf Style                              */
 /*                                                                                         */
 /*******************************************************************************************/
-
 
 class smLogger
 {
