@@ -48,12 +48,13 @@ You can compile this demo with eclipse or g++. Just remember to add -pthread and
 
 Then you can run the binary and have a try:  
 
-"./smLogger" : Run as slave  
-"./smLogger m" : Run as master, manual input mode  
-"./smLogger m r" : Run as master, random mode  
-"./smLogger m l" : Run as master, test log format with random data  
+> "./smLogger" : Run as slave, auto receive message.  
+> "./smLogger s m" : Run as slave, seek message by arrow key (up, down, left, right, q, other key -> offset -1, +1, -10, +10, quit, refresh with current offset).  
+> "./smLogger m" : Run as master, manual input mode  
+> "./smLogger m r" : Run as master, random mode  
+> "./smLogger m l" : Run as master, test log format with random data  
 
-Once you run a master and at least a slave. You can see the statistics data on the master console and the message that got from master on the slave console.  
+Once you run a master and at least one slave. You can see the statistics data on the master console and the message that got from master on the slave console.  
 
 So let's review the requirement we metioned at the begining:
 
@@ -94,15 +95,16 @@ The call Hierarchy is very short. So this log library can be very fast and high 
 ----------------------------------------------------------------------------------
 
 Update on 2018/10/23:  
-Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
-smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
+> Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
+> smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
 ----------------------------------------------------------------------------------
 
 Update on 2018/10/24:  
 
-Move addition data on the tail of file to avoid the messy code.
-You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.  
+> Move addition data on the tail of file to avoid the messy code.
+> You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.
+> Add line-seek feature. Now you can use IDebugBuffer::seek() to seek the start line of log from begining (0 or positive offset) or from tail (positive offset)
 
 
 

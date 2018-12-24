@@ -199,7 +199,7 @@ public:
     void put(uint8_t val) { m_buffer[((*m_writePos)++) % m_length] = val; }
     void poke(int32_t offset, uint8_t val) { access((*m_readPos) + offset) = val; }
     uint8_t get() { return readable(*m_readPos) ? access((*m_readPos)++) : 0; }
-    uint8_t peek(uint32_t offset) { uint64_t pos((*m_readPos) + offset); return readable(pos) ? access(pos) : 0; };
+    uint8_t peek(int32_t offset) { uint64_t pos((*m_readPos) + offset); return readable(pos) ? access(pos) : 0; };
 
 protected:
     uint8_t& access(uint64_t pos) { return m_buffer[pos % m_length]; };
@@ -212,6 +212,13 @@ class IDebugBuffer
 public:
     IDebugBuffer() { };
     virtual ~IDebugBuffer() { };
+
+    // Seek a log by specified line offset and update the read position.
+    // Parameter :
+    //      Positive: Seek line from start
+    //      Nagitive: Seek line from tail
+    // Return value : Actual read position. If not implemented, always return 0.
+    virtual uint64_t seek(int32_t line_offset) = 0;
 
     virtual uint32_t read(uint8_t* buffer, uint32_t buffer_length) = 0;
     virtual uint32_t write(const uint8_t* content, uint32_t content_length, const char* tail) = 0;
@@ -264,23 +271,56 @@ public:
     };
     ~InterProcessDebugBuffer() { };
 
+    uint64_t rpos() const { return m_readPos; }
+
+    virtual uint64_t seek(int32_t line_offset)
+    {
+        int32_t seekOffset = 0;
+        int32_t lineOffset = 0;
+        int32_t sign = line_offset > 0 ? 1 : -1;
+
+        m_ipMemory.access();
+
+        m_readPos = line_offset >= 0 ?
+                (m_header->writePos >= LOG_SIZE ? m_header->writePos - LOG_SIZE + 1 : 0) :
+                (m_header->writePos >= 1 ? m_header->writePos - 1 : 0);
+
+        while(1)
+        {
+            if (line_offset == lineOffset)
+            {
+                // Skip the '\n'
+                ++seekOffset;
+                break;
+            }
+            seekOffset += sign;
+            if (((m_readPos + seekOffset) >= m_header->writePos) ||
+                ((m_readPos + seekOffset) + LOG_SIZE <= m_header->writePos))
+            {
+                seekOffset -= sign;
+                break;
+            }
+            if (m_ringBuffer.peek(seekOffset) == '\n')
+            {
+                lineOffset += sign;
+            }
+        }
+        m_ipMemory.release();
+
+        m_readPos += seekOffset;
+        return m_readPos;
+    }
+
     uint32_t read(uint8_t* buffer, uint32_t buffer_length)
     {
         if (!m_ipMemory.valid())
         {
             return 0;
         }
+        uint32_t readed = 0;
 
         m_ipMemory.access();
-        if (m_readPos > m_header->writePos)
-        {
-            m_readPos = m_header->writePos;
-        }
-        else if (m_header->writePos - m_readPos >= LOG_SIZE)
-        {
-            m_readPos = m_header->writePos - LOG_SIZE + std::min(LOG_SIZE / 10, (uint32_t)500);
-        }
-        uint32_t readed = 0;
+        checkAdjustReadPosition();
         for ( ; ((readed < buffer_length) && !m_ringBuffer.end()); ++readed)
         {
             buffer[readed] = m_ringBuffer.get();
@@ -350,7 +390,10 @@ public:
             if (m_ipMemory.init(LOG_FILE.c_str(), MASTER, sizeof(header) + LOG_SIZE))
             {
                 m_header = (header*)(m_ipMemory.buffer() + LOG_SIZE);
-                memset(m_header->zero, 0, sizeof(m_header->zero));
+                if (MASTER)
+                {
+                    memset(m_header->zero, 0, sizeof(m_header->zero));
+                }
                 m_swapBuffer = (uint32_t*)(m_ipMemory.buffer() + LOG_SIZE + sizeof(header));
                 m_readPos = m_header->latestPos;
                 m_ringBuffer.init(m_ipMemory.buffer(), LOG_SIZE, &m_readPos, &m_header->writePos);
@@ -363,6 +406,19 @@ public:
             }
         }
         return ret;
+    }
+
+protected:
+    void checkAdjustReadPosition()
+    {
+        if (m_readPos > m_header->writePos)
+        {
+            m_readPos = m_header->writePos;
+        }
+        else if (m_header->writePos - m_readPos >= LOG_SIZE)
+        {
+            m_readPos = m_header->writePos - LOG_SIZE + std::min(LOG_SIZE / 10, (uint32_t)500);
+        }
     }
 };
 
