@@ -1,6 +1,7 @@
 #ifndef _INTER_PROCESS_RING_BUFFER_SLEEPY_H_
 #define _INTER_PROCESS_RING_BUFFER_SLEEPY_H_
 
+#include <time.h>
 #include <string>
 #include <stdio.h>
 #include <stdarg.h>
@@ -31,7 +32,8 @@ class InterProcessMemory
 protected:
     struct header
     {
-        char zero[8];
+        char zero[32];
+        uint32_t heartbeat;
         pthread_mutex_t mutex;
     };
 
@@ -41,6 +43,7 @@ protected:
     header* m_ipmHeader;
     bool m_isMaster;
     uint32_t m_ipmLength;
+    uint32_t m_heartbeat;
     pthread_mutexattr_t m_mutexAttr;
 
 public:
@@ -53,6 +56,7 @@ public:
 
         m_isMaster = false;
         m_ipmLength = 0;
+        m_heartbeat = 0;
 
         pthread_mutexattr_init(&m_mutexAttr);
         pthread_mutexattr_setrobust(&m_mutexAttr, PTHREAD_MUTEX_ROBUST);
@@ -85,26 +89,49 @@ public:
         {
             memset(m_ipmHeader->zero, 0, sizeof(m_ipmHeader->zero));
             pthread_mutex_init(&m_ipmHeader->mutex, &m_mutexAttr);
+            m_ipmHeader->heartbeat = 0;
         }
 
         return true;
     }
 
-    bool valid() const { return m_filePtr != NULL; }
+    bool valid() const
+    {
+        return m_filePtr != NULL;
+    }
+
+    bool mutexValid()
+    {
+        return valid() ?
+                (m_isMaster ? true : m_heartbeat != m_ipmHeader->heartbeat) :
+                false;
+    }
 
     uint32_t size() const { return m_ipmLength - sizeof(header) - 1; };
     uint8_t* buffer() { return (uint8_t*)m_filePtr; };
     const uint8_t* buffer() const { return (const uint8_t*)m_filePtr; };
 
-    void access()
+    bool lock()
     {
-        int ret = pthread_mutex_lock(&m_ipmHeader->mutex);
-        if (ret == EOWNERDEAD)
+        bool ret = false;
+        if (mutexValid())
         {
-            pthread_mutex_consistent(&m_ipmHeader->mutex);
+            int r = pthread_mutex_lock(&m_ipmHeader->mutex);
+            if (r == EOWNERDEAD)
+            {
+                pthread_mutex_consistent(&m_ipmHeader->mutex);
+            }
+            ret = true;
+        }
+        return ret;
+    };
+    void unlock()
+    {
+        if (mutexValid())
+        {
+            pthread_mutex_unlock(&m_ipmHeader->mutex);
         }
     };
-    void release() { pthread_mutex_unlock(&m_ipmHeader->mutex); };
 
 protected:
     bool prepareMemoryMapping(const char* path)
@@ -197,7 +224,7 @@ public:
 
     bool end() const { return (*m_readPos) >= (*m_writePos); }
     void put(uint8_t val) { m_buffer[((*m_writePos)++) % m_length] = val; }
-    void poke(int32_t offset, uint8_t val) { access((*m_readPos) + offset) = val; }
+    void poke(int32_t offset, uint8_t val) { access((*m_writePos) + offset) = val; }
     uint8_t get() { return readable(*m_readPos) ? access((*m_readPos)++) : 0; }
     uint8_t peek(int32_t offset) { uint64_t pos((*m_readPos) + offset); return readable(pos) ? access(pos) : 0; };
 
@@ -275,11 +302,16 @@ public:
 
     virtual uint64_t seek(int32_t line_offset)
     {
+        if (!m_ipMemory.valid())
+        {
+            return 0;
+        }
+
         int32_t seekOffset = 0;
         int32_t lineOffset = 0;
         int32_t sign = line_offset > 0 ? 1 : -1;
 
-        m_ipMemory.access();
+        m_ipMemory.lock();
 
         m_readPos = line_offset >= 0 ?
                 (m_header->writePos >= LOG_SIZE ? m_header->writePos - LOG_SIZE + 1 : 0) :
@@ -305,9 +337,10 @@ public:
                 lineOffset += sign;
             }
         }
-        m_ipMemory.release();
+        m_ipMemory.unlock();
 
-        m_readPos += seekOffset;
+            m_readPos += seekOffset;
+
         return m_readPos;
     }
 
@@ -319,39 +352,36 @@ public:
         }
         uint32_t readed = 0;
 
-        m_ipMemory.access();
+        m_ipMemory.lock();
+
         checkAdjustReadPosition();
         for ( ; ((readed < buffer_length) && !m_ringBuffer.end()); ++readed)
         {
             buffer[readed] = m_ringBuffer.get();
         }
-        m_ipMemory.release();
+        m_ipMemory.unlock();
 
         return readed;
     }
     uint32_t write(const uint8_t* content, uint32_t content_length, const char* tail)
     {
-        if (!m_ipMemory.valid())
+        if (m_ipMemory.lock())
         {
-            return 0;
-        }
-
-        m_ipMemory.access();
-        m_header->latestPos = m_header->writePos;
-        for (uint32_t i = 0; i < content_length; ++i)
-        {
-            m_ringBuffer.put(content[i]);
-        }
-        if (tail != NULL)
-        {
-            for (uint32_t i = 0; tail[i] != '\0'; ++i)
+            m_header->latestPos = m_header->writePos;
+            for (uint32_t i = 0; i < content_length; ++i)
             {
-                m_ringBuffer.put(tail[i]);
+                m_ringBuffer.put(content[i]);
             }
+            if (tail != NULL)
+            {
+                for (uint32_t i = 0; tail[i] != '\0'; ++i)
+                {
+                    m_ringBuffer.put(tail[i]);
+                }
+            }
+            m_ringBuffer.poke(0, 0);
+            m_ipMemory.unlock();
         }
-        m_ringBuffer.poke(0, 0);
-        m_ipMemory.release();
-
         return content_length;
     }
 
@@ -362,9 +392,9 @@ public:
             return 0;
         }
 
-        m_ipMemory.access();
+        m_ipMemory.lock();
         uint32_t val = m_swapBuffer[offset];
-        m_ipMemory.release();
+        m_ipMemory.unlock();
 
         return val;
     }
@@ -375,9 +405,9 @@ public:
             return false;
         }
 
-        m_ipMemory.access();
+        m_ipMemory.lock();
         m_swapBuffer[offset] = val;
-        m_ipMemory.release();
+        m_ipMemory.unlock();
 
         return true;
     }
@@ -479,7 +509,7 @@ public:
                     delete[] m_fmtBuffer;
                     m_bufferLen = needed + 32;
                     m_fmtBuffer = new char[m_bufferLen];
-                    release();
+                    unlock();
                 }
             va_end(ap);
         }
@@ -490,22 +520,30 @@ public:
                 int len = vsprintf(m_fmtBuffer, fmt, ap);
                 if ((m_dbgBuffer != NULL) && (len > 0))
                 {
-                    logLen = m_dbgBuffer->write((uint8_t*)m_fmtBuffer, (uint32_t)len, "\n");
+                    logLen = m_dbgBuffer->write((uint8_t*)m_fmtBuffer, (uint32_t)len, "\0");
                 }
-                release();
+                unlock();
             va_end(ap);
         }
         return logLen;
     }
+
+    static const double timestamp()
+    {
+        struct timespec timeSpec;
+        clock_gettime(CLOCK_MONOTONIC, &timeSpec);
+        return 0.000000001 * timeSpec.tv_nsec + timeSpec.tv_sec;
+    }
+
 protected:
     void lock() { pthread_mutex_lock(&m_mutex); };
-    void release() { pthread_mutex_unlock(&m_mutex); };
+    void unlock() { pthread_mutex_unlock(&m_mutex); };
 };
 
 
-#define LOG_DEBUG(fmt, ...) smLogger::instance().log(fmt, ##__VA_ARGS__)
-#define LOG_TRACE(fmt, ...) smLogger::instance().log("TRACE - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
-#define LOG_ERROR(fmt, ...) smLogger::instance().log("ERROR - " __FILE__ " (%d) : " fmt, __LINE__, ##__VA_ARGS__)
+#define LOG_DEBUG(fmt, ...) smLogger::instance().log("[%f]" fmt, smLogger::timestamp(), ##__VA_ARGS__)
+#define LOG_TRACE(fmt, ...) smLogger::instance().log("[%f] TRACE - " __FILE__ " (%d) : " fmt, smLogger::timestamp(), __LINE__, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) smLogger::instance().log("[%f] ERROR - " __FILE__ " (%d) : " fmt, smLogger::timestamp(), __LINE__, ##__VA_ARGS__)
 
 
 

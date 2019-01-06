@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <termios.h>
+#include <inttypes.h>
 
 
 void slave_auto(InterProcessDebugBuffer& ipdb)
@@ -19,7 +20,7 @@ void slave_auto(InterProcessDebugBuffer& ipdb)
             if (readed > 0)
             {
                 ++read_count;
-                printf("--------------------> Read len = %d\n", readed);
+                printf("--------------------> Read len = %d, Read pos = %" PRIu64 "\n", readed, ipdb.rpos());
                 for (uint32_t i = 0; i < readed; ++i)
                 {
                     putchar(buffer[i]);
@@ -120,7 +121,7 @@ void slave_manual(InterProcessDebugBuffer& ipdb)
 
 void slave(char selection)
 {
-    InterProcessDebugBuffer ipdb(false, 10 * 1024, 10, "/tmp/iplog.txt");
+    InterProcessDebugBuffer ipdb(false, 1 * 1024 * 1024, 10, "/tmp/iplog.txt");
 
     switch(selection)
     {

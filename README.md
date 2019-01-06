@@ -65,13 +65,6 @@ For 3: When the application crashed. The log will keep in file. But when the app
 For A & D: Every involver can write the memory. So the trigger feature and inter porcess access is very easy.  
 For B: We can reserve some space as "swap" space, which can implement the filter or callback feature.  
 
-Flaws:  
-
-0.Some additional data attached on the front of log file, which will cause messy code.  
-00.It's not friendly for tail. Because the file is pre-allocated and ring-writed. So the -f parameter may not work.  
-
-I think it could have some improvement.  
-
 ----------------------------------------------------------------------------------------------------------  
 
 Code design:  
@@ -94,17 +87,26 @@ The call Hierarchy is very short. So this log library can be very fast and high 
 
 ----------------------------------------------------------------------------------
 
-Update on 2018/10/23:  
+Update on 2018/12/23:  
 > Add build option "libsmLogger". Use this build option to build dynamic lib (libsmLogger/libsmLogger.so).  
 > smlogger.py is a demo to show using smLogger in python as a slave. You can run a master first then run smlogger.py directly and you can see the outputs and triggers on python console.  
 
 ----------------------------------------------------------------------------------
 
-Update on 2018/10/24:  
+Update on 2018/12/24:  
 
 > Move addition data on the tail of file to avoid the messy code.
 > You can use command: watch -n 1 tail /tmp/iplog.txt to view the log.
 > Add line-seek feature. Now you can use IDebugBuffer::seek() to seek the start line of log from begining (0 or positive offset) or from tail (positive offset)
+
+----------------------------------------------------------------------------------
+
+Update on 2019/01/06:  
+
+> Add timestamp to the log to try to make it better showing in dmesg or other viewer (not too much improvement).
+> Add (not perfect) lock checking to avoid slave access an un-initlized lock.
+> Add Robot Framework support for smLogger.py
+> Fix some bug detected in our test.
 
 
 

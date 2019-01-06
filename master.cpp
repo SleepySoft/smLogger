@@ -12,6 +12,7 @@ void test_ipbuffer_random(InterProcessDebugBuffer& ipdb)
     uint32_t length_counter = 0;
     std::string text;
     struct timespec startTime, endTime;
+    smLogger::instance().init(&ipdb);
 
     while(1)
     {
@@ -26,7 +27,8 @@ void test_ipbuffer_random(InterProcessDebugBuffer& ipdb)
             text = generateRandomString();
             length_counter += text.length();
 
-            ipdb.write((uint8_t*)text.c_str(), text.size(), "\n");
+//            ipdb.write((uint8_t*)text.c_str(), text.size(), "\n");
+            LOG_TRACE("%s\n", text.c_str());
 
             if (times_counter >= 1000)
             {
@@ -122,7 +124,7 @@ void test_logger_random(InterProcessDebugBuffer& ipdb)
 
 void master(char selection)
 {
-    InterProcessDebugBuffer ipdb(true, 10 * 1024, 10, "/tmp/iplog.txt");
+    InterProcessDebugBuffer ipdb(true, 1 * 1024 * 1024, 10, "/tmp/iplog.txt");
 
     switch(selection)
     {
