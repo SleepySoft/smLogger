@@ -1,3 +1,9 @@
+Update on 2019/02/26 : blockLogger - a new thinking of logging. You can get more information from the comments in front of blockLogger.h  
+Do we really need the stream-style log? At most of time, we only need the most recent logs. So we can just assign a "block" for each log entry and logging circularly, which makes us can get the most recent log but do not need to keep a huge log file.  
+The blockLogger can also work with InterProcessMemory, which makes it having the same advantage with smLogger.  
+
+----------------------------------------------------------------------------------------------------------  
+
 I've worked for 4 companies. And 5 logging ways I've used. 4 different ways in different company and the other one is printf.  
 
 I'm considering, what's the perfect way for our logging, I think it should be:  
@@ -68,10 +74,13 @@ For B: We can reserve some space as "swap" space, which can implement the filter
 ----------------------------------------------------------------------------------------------------------  
 
 Code design:  
-
+  
 smlogger.h: Main code.  
+blockLogger.h: Code of blockLogger.  
+  
 master.cpp: Test code of master  
 slave.cpp: Test code of slave  
+block.cpp: Test code of blockLogger.  
 main.cpp: main()  
 
 In smlogger.h:  
@@ -108,7 +117,12 @@ Update on 2019/01/06:
 > Add Robot Framework support for smLogger.py
 > Fix some bug detected in our test.
 
+----------------------------------------------------------------------------------
 
+Update on 2019/02/26:  
+
+> Add blockLogger.
+> Add test code for blockLogger.
 
 
 

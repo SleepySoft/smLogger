@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 
+void block();
 void slave(char selection);
 void master(char selection);
 
@@ -62,12 +63,34 @@ void testPrintfTimeSpending()
 }
 
 
+/*******************************************************************************************/
+/*  The first Param:                                                                       */
+/*    -p, -P : Test printf time spending                                                   */
+/*    -b, -B : Test blockLogger                                                            */
+/*    -m, -M : Test ipbuffer/smLogger as MASTER, default as manual send mode.              */
+/*    -s, -S : Test ipbuffer/smLogger as SLAVE, default as auto (random) send mode.        */
+/*  The Second Param (work with the first param -m):                                       */
+/*    -m, -M : Manual mode.                                                                */
+/*    -r, -R : Random mode for ipbuffer.                                                   */
+/*    -l, -L : Random mode for smLogger.                                                   */
+/*  The Second Param (work with the first param -s):                                       */
+/*    -a, -A : Random mode for ipbuffer.                                                   */
+/*    -m, -M : Manual mode for ipbuffer.                                                   */
+/*                                                                                         */
+/*******************************************************************************************/
+
+
 int main(int argc, char **argv)
 {
     srand((unsigned)time(NULL));
     if ((argc >= 2) && ((argv[1][0] == 'p') || (argv[1][0] == 'P')))
     {
         testPrintfTimeSpending();
+    }
+    else if ((argc >= 2) && ((argv[1][0] == 'b') || (argv[1][0] == 'B')))
+    {
+        printf("Run block test.");
+        block();
     }
     else if ((argc >= 2) && ((argv[1][0] == 'm') || (argv[1][0] == 'M')))
     {
