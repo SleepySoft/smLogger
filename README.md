@@ -1,6 +1,7 @@
 Update on 2019/02/26 : blockLogger - a new thinking of logging. You can get more information from the comments in front of blockLogger.h  
-Do we really need the stream-style log? At most of time, we only need the most recent logs. So we can just assign a "block" for each log entry and logging circularly, which makes us can get the most recent log but do not need to keep a huge log file.  
-The blockLogger can also work with InterProcessMemory, which makes it having the same advantage with smLogger.  
+  
+Do we really need the stream-style log? At most of time, we only need the most recent logs. So we can just assign a "block" for each log entry and logging circularly, which makes us can keep the most recent logs but avoiding logging a huge log file.  
+The blockLogger can also work with InterProcessMemory, which makes it having the same advantage to the smLogger. And without InterProcessMemory it's totally cross-platform.  
 
 ----------------------------------------------------------------------------------------------------------  
 
@@ -123,7 +124,9 @@ Update on 2019/02/26:
 
 > Add blockLogger.
 > Add test code for blockLogger.
-
+  
+> Refactor blockLogger code and replace placeholder from '\0' to space which makes the log file more clear.
+> Add VS2015 project for blockLogger and update gitignore.
 
 
 

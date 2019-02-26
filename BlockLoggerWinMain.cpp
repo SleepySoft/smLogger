@@ -1,23 +1,99 @@
+#define _CRT_SECURE_NO_DEPRECATE
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
+
 /*
- * block.cpp
- *
- *  Created on: Feb 26, 2019
- *      Author: Sleepy
- */
+The best way to count the max occurrence in a ring buffer which seems to be quite complicated.
+*/
+
+template < class T, uint32_t THRESHOLD >
+class selector
+{
+protected:
+    T m_chosen;
+    uint32_t m_waitAndSee;
+    uint32_t m_hesitatation;
+public:
+    selector() { reset(T()); }
+    ~selector() { }
+
+    void reset(const T& val)
+    {
+        m_chosen = val;
+        m_waitAndSee = 0;
+        m_hesitatation = 0;
+    }
+    void update(const T& val)
+    {
+        if (!decided())
+        {
+            if (val == m_chosen)
+            {
+                ++m_waitAndSee;
+            }
+            else
+            {
+                m_chosen = val;
+                m_waitAndSee = 1;
+            }
+            ++m_hesitatation;
+        }
+    }
+
+    T& selection() { return m_chosen;  }
+    bool decided() const { return m_waitAndSee >= THRESHOLD; }
+    uint32_t hesitatation() const { return m_hesitatation; }
+};
+
+void test_selector()
+{
+    static uint32_t baseType = 15;
+    static uint32_t noizeRate = 20;
+
+    srand((unsigned)time(NULL));
+
+    uint32_t maxHesitatation = 0;
+    selector< uint32_t, 5 > sel;
+
+    for (uint32_t i = 1; i <= 10000; ++i)
+    {
+        bool noize = (((uint32_t)abs(rand()) % 100) <= noizeRate);
+        uint32_t samplingType = noize ? (baseType + rand() % 10) : baseType;
+
+        samplingType = i % 100 ? samplingType : 0;
+
+        if (samplingType == 0)
+        {
+            printf("Hesitatation Count £º %d\n", sel.hesitatation());
+            sel.reset(0);
+            printf("----------------------------------------------------------------------\n");
+        }
+        else
+        {
+            sel.update(samplingType);
+        }
+        maxHesitatation = sel.selection() > maxHesitatation ? sel.selection() : maxHesitatation;
+        printf("Sampling Type: %d , Selected Type: %d\n", samplingType, sel.selection());
+    }
+
+    printf("\nThe maxHesitatation : %d\n\n", maxHesitatation);
+}
 
 #include "blockLogger.h"
-#include "smlogger.h"
 
-#include <string>
-#include <stdio.h>
+#define LOOPS(x) for (uint32_t i = 0; i < x; ++i) 
 
-#define LOOPS(x) for (uint32_t i = 0; i < x; ++i)
-
-void doBlockLoggerTest(uint8_t* buffer, uint32_t size)
+void main()
 {
-    BlockLogger::instance().final();
-    BlockLogger::instance().init(buffer, size);
+    static const uint32_t TEST_BUFFER_SIZE = 5000;
 
+    uint8_t* buffer = new uint8_t[TEST_BUFFER_SIZE];
+    memset(buffer, ' ', TEST_BUFFER_SIZE);
+
+    BlockLogger::instance().init(buffer, TEST_BUFFER_SIZE);
     BlockLogger::instance().registerBlock("Registered Named Log: ", "%0.2f", 150);
     BlockLogger::instance().registerBlock("", "Registered Anonymous Log: %08X", 300);
 
@@ -67,40 +143,11 @@ void doBlockLoggerTest(uint8_t* buffer, uint32_t size)
         snprintf(formater, sizeof(formater), "Test Log Buffer Over Flow [%d] - %%d", i);
         BlockLogger::instance().anonymous_log(formater, i);
     }
-}
 
-static const uint32_t TEST_BUFFER_SIZE = 5000;
-
-void testBlockLoggerWithLocalRam()
-{
-    uint8_t* buffer = new uint8_t[TEST_BUFFER_SIZE];
-    memset(buffer, ' ', TEST_BUFFER_SIZE);
-
-    doBlockLoggerTest(buffer, TEST_BUFFER_SIZE);
-
-    FILE* file = fopen("/tmp/localblock.txt", "wb");
+    FILE* file = fopen("log.txt", "wb");
     fwrite(buffer, 1, TEST_BUFFER_SIZE, file);
     fclose(file);
 
     delete[] buffer;
     buffer = NULL;
 }
-
-
-void testBlockLoggerWithSharedRam()
-{
-    InterProcessMemory ipm;
-    ipm.init("/tmp/ipblock.txt", true, TEST_BUFFER_SIZE);
-    memset(ipm.buffer(), ' ', TEST_BUFFER_SIZE);
-    doBlockLoggerTest(ipm.buffer(), TEST_BUFFER_SIZE);
-}
-
-void block()
-{
-    testBlockLoggerWithLocalRam();
-    testBlockLoggerWithSharedRam();
-}
-
-
-
-

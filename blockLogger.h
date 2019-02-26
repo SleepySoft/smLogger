@@ -27,6 +27,9 @@
 #define LINE_SEPERATOR "\r\n"
 #define BLOCK_SEPERATOR "\n------------\n"
 
+#define NAMED_LOG_RESERVE_RATIO 10
+#define ANONYMOUS_LOG_RESERVE_RATIO 5
+
 typedef const char* CONSTSTR;
 
 class BlockLogger
@@ -104,30 +107,18 @@ public:
         if (block == NULL)
         {
             int needed = snprintf(NULL, 0, defaultFormater(val), val);
-            block = registerBlock(name, defaultFormater(val), needed * 10);
+            block = registerBlock(name, defaultFormater(val), needed * NAMED_LOG_RESERVE_RATIO);
         }
         if ((block != NULL) && (block->formater != ""))
         {
-            if (block->getFreeSpace() == 0)
-            {
-                block->resetItemAddr();
-            }
-            if (block->itemOffset != 0)
-            {
-                int used = snprintf((char*)block->getItemAddr(), block->getFreeSpace(), "%s", ITEM_SEPERATOR);
-                block->shiftItemAddr(used);
-            }
+            beforeWrite(block, ITEM_SEPERATOR, sizeof(ITEM_SEPERATOR) - 1);
             int needed = snprintf((char*)block->getItemAddr(), block->getFreeSpace(), block->formater.c_str(), val);
-            if (needed > (int)block->getFreeSpace())
+
+            if (!checkWrite(block, needed))
             {
-                block->resetItemAddr();
                 needed = snprintf((char*)block->getItemAddr(), block->getFreeSpace(), block->formater.c_str(), val);
             }
-            block->shiftItemAddr(needed);
-            if (block->getFreeSpace() > sizeof(ITEM_MARKER))
-            {
-                memcpy((char*)block->getItemAddr(), ITEM_MARKER, sizeof(ITEM_MARKER) - 1);
-            }
+            afterWrite(block, needed, ITEM_MARKER, sizeof(ITEM_MARKER) - 1);
         }
     }
 
@@ -141,37 +132,70 @@ public:
         if (block == NULL)
         {
             int needed = vasnrintf(NULL, 0, format, args);
-            block = registerBlock("", format, needed * 5);
+            block = registerBlock("", format, needed * ANONYMOUS_LOG_RESERVE_RATIO);
         }
 
         if (block != NULL)
         {
-            if (block->getFreeSpace() == 0)
-            {
-                block->resetItemAddr();
-            }
-            if (block->itemOffset != 0)
-            {
-                int used = snprintf((char*)block->getItemAddr(), block->getFreeSpace(), "%s", LINE_SEPERATOR);
-                block->shiftItemAddr(used);
-            }
+            beforeWrite(block, LINE_SEPERATOR, sizeof(LINE_SEPERATOR) - 1);
             int needed = vsnprintf((char*)block->getItemAddr(), block->getFreeSpace(), format, args);
-            if (needed > (int)block->getFreeSpace())
+
+            if (!checkWrite(block, needed))
             {
-                block->resetItemAddr();
                 needed = vsnprintf((char*)block->getItemAddr(), block->getFreeSpace(), format, args);
             }
-            block->shiftItemAddr(needed);
-            if (block->getFreeSpace() > sizeof(ITEM_MARKER LINE_SEPERATOR))
-            {
-                memcpy((char*)block->getItemAddr(), ITEM_MARKER LINE_SEPERATOR, sizeof(ITEM_MARKER LINE_SEPERATOR) - 1);
-            }
+            afterWrite(block, needed, ITEM_MARKER LINE_SEPERATOR, sizeof(ITEM_MARKER LINE_SEPERATOR) - 1);
         }
 
         va_end(args);
     }
 
 protected:
+    void beforeWrite(BlockData* block, const char* seperator, uint32_t len)
+    {
+        uint32_t minLen = (block->itemOffset != 0) + 1 ? len : 1;
+
+        if (block->getFreeSpace() < minLen)
+        {
+            block->resetItemAddr();
+        }
+        if (block->getFreeSpace() >= minLen)
+        {
+            if ((block->itemOffset != 0) && (seperator != NULL))
+            {
+                memcpy(block->getItemAddr(), seperator, len);
+                block->shiftItemAddr(len);
+            }
+        }
+    }
+    bool checkWrite(BlockData* block, int needed)
+    {
+        bool enough = (needed <= (int)block->getFreeSpace());
+        if (!enough)
+        {
+            memset(block->getItemAddr(), ' ', block->getFreeSpace());
+            block->resetItemAddr();
+        }
+        return enough;
+    }
+    void afterWrite(BlockData* block, int needed, const char* seperator, uint32_t len)
+    {
+        uint32_t freeSpace = block->getFreeSpace();
+        if ((int)freeSpace <= needed)
+        {
+            block->shiftItemAddr(freeSpace);
+        }
+        else
+        {
+            block->getItemAddr()[needed] = ' ';
+            block->shiftItemAddr(needed);
+        }
+        if (block->getFreeSpace() >= len)
+        {
+            memcpy((char*)block->getItemAddr(), seperator, len);
+        }
+    }
+
     BlockData* newBlock(const char* key, uint32_t size)
     {
         BlockData* block = new BlockData;
@@ -245,6 +269,10 @@ protected:
 #endif
 
         int needed = vsnprintf(buffer, length, format, args);
+        if (needed < (int)length)
+        {
+            buffer[needed] = ' ';
+        }
 
         // NOTE: dupArgs on GCC platform is mangled by usage in v*printf() and cannot be reused.
 #ifdef __GNUC__
